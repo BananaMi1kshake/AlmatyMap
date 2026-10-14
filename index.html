@@ -1,868 +1,502 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Almaty Neighborhoods Map</title>
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-    <!-- Leaflet MarkerCluster CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
-    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
-
-    <!-- H3-js -->
-    <script src="https://unpkg.com/h3-js@4.1.0/dist/h3-js.umd.js"></script>
-
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Inter', sans-serif; overflow: hidden; }
-        #map { width: 100%; height: 100%; z-index: 10; }
-        
-        /* Floating UI Elements */
-        .ui-layer { z-index: 1000; pointer-events: none; }
-        .ui-element { pointer-events: auto; }
-        
-        /* Custom Map Styles */
-        .leaflet-container { background: #e5e7eb; }
-        .drawing-cursor { cursor: crosshair !important; }
-        
-        /* Modals & Overlays */
-        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
-        .dark-glass { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px); color: white; }
-        
-        /* Sidebar transition */
-        #sidebar { transition: transform 0.3s ease-in-out; }
-        .sidebar-hidden { transform: translateX(100%); }
-        .sidebar-visible { transform: translateX(0); }
-        
-        /* Custom Scrollbar for Sidebar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What do you call it? Almaty neighborhood map</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<style>
+  :root {
+    --paper: #f3f1ec;
+    --ink: #1d2a2f;
+    --muted: #6b787d;
+    --line: #d4d0c6;
+    --accent: #4f46e5;
+    --accent-ink: #ffffff;
+    --panel: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #151b1e;
+      --ink: #e8ece9;
+      --muted: #94a1a5;
+      --line: #2c373b;
+      --accent: #6366f1;
+      --accent-ink: #ffffff;
+      --panel: #1e293b;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink);
+    font-family: system-ui, -apple-system, sans-serif; }
+  body { overflow: hidden; }
+  header { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; justify-content: space-between; pointer-events: none; }
+  header > * { pointer-events: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; box-shadow: 0 4px 15px rgba(0,0,0,.08); }
+  header > .modes { padding: 4px; border-radius: 10px; gap: 4px; }
+  h1 { margin: 0; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+  .modes { display: flex; background: var(--paper); border: 1px solid var(--line); overflow: hidden; }
+  .modes button { border: 0; background: transparent; color: var(--muted); padding: 8px 16px; font: inherit; font-size: 0.95rem; font-weight: 600; cursor: pointer; border-radius: 6px; transition: all 0.2s; }
+  .modes button[aria-pressed="true"] { background: var(--panel); color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  main { position: fixed; inset: 0; }
+  #mapwrap { position: absolute; inset: 0; background: var(--paper); }
+  #map { position: absolute; inset: 0; }
+  aside { position: absolute; z-index: 10; right: 12px; bottom: 12px; width: 340px; max-width: calc(100% - 24px); max-height: 60vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; font-size: 0.95rem; box-shadow: 0 4px 20px rgba(0,0,0,.12); transition: opacity 0.3s, transform 0.3s; }
+  aside h2 { margin: 0 0 8px; font-size: 1.1rem; }
+  aside p { margin: 0 0 14px; color: var(--muted); line-height: 1.5; font-size: 0.9rem; }
+  label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+  input[type=text] { width: 100%; padding: 10px 12px; font: inherit; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); outline: none; transition: border-color 0.2s; }
+  input[type=text]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); }
+  .row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .btn { flex: 1; padding: 10px 14px; font: inherit; font-weight: 600; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; transition: all 0.2s; text-align: center; }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .btn:not(:disabled):hover { filter: brightness(0.95); }
+  #panel-toggle { position: absolute; top: 12px; right: 12px; border: 0; background: var(--paper); color: var(--muted); font: inherit; font-size: 0.85rem; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
+  #panel-toggle:hover { color: var(--ink); }
+  aside { padding-top: 40px; }
+  aside.hidden { opacity: 0; transform: translateY(10px); pointer-events: none; }
+  #show-panel { position: absolute; z-index: 10; right: 12px; bottom: 12px; opacity: 0; pointer-events: none; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px; font: inherit; font-weight: 600; font-size: 0.95rem; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,.12); transition: opacity 0.3s; }
+  #show-panel.on { opacity: 1; pointer-events: auto; }
+  #add-panel { display: none; }
+  body.add #add-panel { display: block; }
+  body.add #explore-panel { display: none; }
+  #legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+  #legend span { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 500; }
+  #legend i { width: 14px; height: 14px; border-radius: 4px; display: inline-block; }
+  #tip { position: absolute; pointer-events: none; z-index: 5; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; line-height: 1.4; box-shadow: 0 4px 15px rgba(0,0,0,.15); display: none; min-width: 160px; }
+  #tip b { display: block; margin-bottom: 4px; font-size: 0.95rem; }
+  #tip .bar { height: 6px; border-radius: 3px; margin: 3px 0 6px; }
+  #tip .meta { color: var(--muted); font-size: 0.8rem; }
+  #status { margin-top: 12px; font-size: 0.85rem; color: var(--muted); min-height: 1.2em; font-weight: 500; text-align: center; }
+  .small { font-size: 0.8rem; color: var(--muted); margin-top: 16px; line-height: 1.4; text-align: center; border-top: 1px solid var(--line); padding-top: 12px; }
+</style>
 </head>
-<body class="relative bg-gray-100">
+<body>
+<header>
+  <div>
+    <h1>What do you call it?</h1>
+    <p>Almaty neighborhood names, mapped by locals.</p>
+  </div>
+  <div class="modes" role="group" aria-label="Mode">
+    <button id="m-explore" aria-pressed="true">Explore</button>
+    <button id="m-add" aria-pressed="false">Paint Area</button>
+  </div>
+</header>
 
-    <!-- Map Container -->
-    <div id="map" class="absolute inset-0"></div>
+<main>
+  <div id="mapwrap">
+    <div id="map"></div>
+    <div id="tip"></div>
+  </div>
 
-    <!-- UI Overlay: Top Controls -->
-    <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-start ui-layer pointer-events-none">
+  <aside id="panel">
+    <button id="panel-toggle" aria-expanded="true">Hide</button>
+    <div id="explore-panel">
+      <h2>Explore Neighborhoods</h2>
+      <p>Hover over or tap the map to see the names locals use for different areas.</p>
+      <div id="legend"></div>
+    </div>
+
+    <div id="add-panel">
+      <h2>Add a Neighborhood</h2>
+      <p>Type the local name. Then click and drag on the map to paint the blocks it covers. Tap painted blocks to erase.</p>
+      <label for="name">Neighborhood Name</label>
+      <input id="name" type="text" maxlength="40" list="known" autocomplete="off" placeholder="e.g. Kompota">
+      <datalist id="known"></datalist>
+      <div class="row">
+        <button class="btn primary" id="submit" disabled>Save to Map</button>
+        <button class="btn" id="clear">Clear</button>
+      </div>
+      <div id="status"></div>
+    </div>
+    
+    <p class="small">Live data powered by Firebase.</p>
+  </aside>
+  <button id="show-panel">Show Panel</button>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/h3-js@4.1.0/dist/h3-js.umd.js"></script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, collection, onSnapshot, doc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+  // ---------- Config & Setup ----------
+  const firebaseConfig = {
+      apiKey: "AIzaSyDpyzVXOn5T3srMXeGq5RX9T8NSfaLdsNw",
+      authDomain: "almaty-hood-map.firebaseapp.com",
+      projectId: "almaty-hood-map",
+      storageBucket: "almaty-hood-map.firebasestorage.app",
+      messagingSenderId: "543512432504",
+      appId: "1:543512432504:web:9ee499e864df37cc38c28d"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  const PATH_PUBLIC_DATA = 'artifacts/almaty-hood-map/public/data';
+  const hexCollectionRef = collection(db, PATH_PUBLIC_DATA, 'hex_names');
+
+  let currentUser = null;
+  signInAnonymously(auth).then(cred => { currentUser = cred.user; }).catch(console.error);
+
+  const RES = 9; 
+  // Expanded bounds for better Almaty coverage
+  const BOUNDS = [[76.75, 43.12], [77.15, 43.40]]; 
+  const CITY = [
+    [76.75, 43.12],
+    [76.75, 43.40],
+    [77.15, 43.40],
+    [77.15, 43.12],
+    [76.75, 43.12]
+  ];
+  
+  const MAX_HEXES = 200, MAX_NAME = 40;
+
+  const ALIASES = {
+    'самал':'Samal','samal':'Samal','самал-2':'Samal',
+    'коктем':'Koktem','koktem':'Koktem','көктем':'Koktem',
+    'достык':'Dostyk','dostyk':'Dostyk',
+    'аксай':'Aksai','aksai':'Aksai','ақсай':'Aksai',
+    'орбита':'Orbita','orbita':'Orbita',
+    'алмалы':'Almaly','almaly':'Almaly',
+    'жетысу':'Zhetysu','zhetysu':'Zhetysu','жетісу':'Zhetysu',
+    'тастак':'Tastak','tastak':'Tastak',
+    'алатау':'Alatau','alatau':'Alatau',
+    'мамыр':'Mamyr','mamyr':'Mamyr',
+    'горный гигант':'Gorny Gigant','gorny gigant':'Gorny Gigant',
+    'казахфильм':'Kazakhfilm','kazakhfilm':'Kazakhfilm'
+  };
+  const canon = s => {
+    const t = s.trim().replace(/\s+/g, ' ').slice(0, MAX_NAME);
+    return ALIASES[t.toLowerCase()] || (t.charAt(0).toUpperCase() + t.slice(1));
+  };
+
+  // ---------- Hex grid generation ----------
+  const GRID_POLY = (() => {
+    const pts = CITY.slice(0, -1);
+    const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length;
+    const cy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+    const ring = pts.map(([x, y]) => [cx + (x - cx) * 1.015, cy + (y - cy) * 1.015]);
+    return [...ring, ring[0]];
+  })();
+  const cells = h3.polygonToCells(GRID_POLY, RES, true);
+  const cellSet = new Set(cells);
+  const geom = {};
+  cells.forEach(id => { geom[id] = h3.cellToBoundary(id, true); });
+
+  // ---------- Firebase Sync ----------
+  let firebaseVotes = {}; 
+  let docCache = new Map(); // Caches Firestore docs for faster updates
+
+  onSnapshot(hexCollectionRef, (snapshot) => {
+    firebaseVotes = {};
+    docCache.clear();
+    
+    snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        docCache.set(`${data.hex_id}_${data.name}`, { id: docSnap.id, ...data });
         
-        <!-- Branding & Mode Toggle -->
-        <div class="flex flex-col gap-3 ui-element">
-            <div class="glass-panel px-4 py-3 rounded-xl shadow-lg border border-gray-200 flex items-center gap-3">
-                <i class="fa-solid fa-map-location-dot text-indigo-600 text-xl"></i>
-                <h1 class="font-bold text-gray-800 text-lg hidden sm:block">Almaty Mapper</h1>
-            </div>
-            
-            <div class="glass-panel p-1 rounded-xl shadow-lg border border-gray-200 inline-flex">
-                <button id="btnModeHex" class="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-indigo-100 text-indigo-700">
-                    <i class="fa-solid fa-draw-polygon mr-1"></i> Areas
-                </button>
-                <button id="btnModePin" class="px-4 py-2 rounded-lg font-medium text-sm transition-colors text-gray-600 hover:bg-gray-100">
-                    <i class="fa-solid fa-location-dot mr-1"></i> Pins
-                </button>
-            </div>
-        </div>
+        // Hide heavily downvoted areas
+        if (data.score <= -4) return;
+        
+        if (!firebaseVotes[data.hex_id]) firebaseVotes[data.hex_id] = {};
+        // Use the accumulated score in Firebase as the weight
+        firebaseVotes[data.hex_id][data.name] = (firebaseVotes[data.hex_id][data.name] || 0) + Math.max(1, data.score);
+    });
+    
+    if (map.getSource('hex')) refresh();
+    buildLegend();
+    buildDatalist();
+  }, console.error);
 
-        <!-- Action & User Profile -->
-        <div class="flex flex-col items-end gap-3 ui-element">
-            <div class="glass-panel px-4 py-2 rounded-xl shadow-lg border border-gray-200 flex items-center gap-3 cursor-pointer hover:bg-gray-50 transition" id="btnUserAuth">
-                <div class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold" id="userAvatar">
-                    <i class="fa-solid fa-user"></i>
-                </div>
-                <span id="userName" class="font-medium text-gray-800 text-sm">Sign In</span>
-            </div>
+  function tally(id) {
+    const out = firebaseVotes[id] || {};
+    const total = Object.values(out).reduce((a, b) => a + b, 0);
+    const list = Object.entries(out).sort((a, b) => b[1] - a[1]);
+    return { list, total };
+  }
 
-            <!-- Dynamic Action Button based on mode -->
-            <button id="btnMainAction" class="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg px-5 py-3 rounded-xl font-bold transition-all transform hover:scale-105 flex items-center gap-2">
-                <i class="fa-solid fa-paint-roller"></i> Paint Area
-            </button>
-        </div>
-    </div>
+  // Generate consistent color from string
+  const hue = n => { let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0) * 7) % 360; return h; };
+  const color = n => `hsl(${hue(n)} 65% 50%)`;
 
-    <!-- Painting / Dropping Active state banner -->
-    <div id="activeActionBanner" class="absolute top-6 left-1/2 transform -translate-x-1/2 ui-layer hidden pointer-events-none">
-        <div class="dark-glass px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 ui-element border border-indigo-400">
-            <span id="actionInstruction" class="font-semibold text-sm">Click and drag to select...</span>
-            <div class="h-6 w-px bg-gray-600 mx-1"></div>
-            <button id="btnClearSelection" class="text-gray-300 hover:text-white px-2 py-1 text-xs font-bold transition hidden">
-                <i class="fa-solid fa-eraser mr-1"></i> Clear
-            </button>
-            <button id="btnConfirmAction" class="bg-green-500 hover:bg-green-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition shadow">Next</button>
-            <button id="btnCancelAction" class="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition shadow">Cancel</button>
-        </div>
-    </div>
+  // ---------- State ----------
+  let mode = 'explore';
+  const selected = new Set();
+  let hoverId = null, painting = false, paintAdd = true;
 
-    <!-- Info Sidebar (Right) -->
-    <div id="sidebar" class="absolute top-0 right-0 h-full w-80 lg:w-96 glass-panel shadow-2xl border-l border-gray-200 sidebar-hidden ui-layer flex flex-col ui-element">
-        <div class="p-4 border-b border-gray-200 flex justify-between items-center bg-white/50">
-            <h2 class="font-bold text-lg text-gray-800" id="sidebarTitle">Details</h2>
-            <button id="btnCloseSidebar" class="text-gray-500 hover:text-gray-800 w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center transition">
-                <i class="fa-solid fa-xmark text-lg"></i>
-            </button>
-        </div>
-        <div class="p-4 flex-1 overflow-y-auto" id="sidebarContent">
-            <!-- Dynamic content injected here -->
-            <div class="flex flex-col items-center justify-center h-full text-center text-gray-500 opacity-70">
-                <i class="fa-solid fa-hand-pointer text-4xl mb-3"></i>
-                <p>Select an area or pin on the map to see local names and votes.</p>
-            </div>
-        </div>
-    </div>
+  // ---------- Map ----------
+  const map = new maplibregl.Map({
+    container: 'map',
+    style: {
+      version: 8,
+      sources: {
+        'esri': {
+          type: 'raster',
+          tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}'],
+          tileSize: 256,
+          attribution: '&copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+        }
+      },
+      layers: [{
+        id: 'esri-tiles',
+        type: 'raster',
+        source: 'esri',
+        minzoom: 0,
+        maxzoom: 19
+      }]
+    },
+    center: [(BOUNDS[0][0] + BOUNDS[1][0]) / 2, (BOUNDS[0][1] + BOUNDS[1][1]) / 2],
+    zoom: 11,
+    maxBounds: BOUNDS,
+    maxZoom: 16,
+    dragRotate: false, pitchWithRotate: false, touchPitch: false,
+    attributionControl: { compact: true }
+  });
+  map.touchZoomRotate.disableRotation();
 
-    <!-- Name Prompt Modal -->
-    <div id="modalNamePrompt" class="absolute inset-0 bg-gray-900/60 flex items-center justify-center z-[2000] hidden ui-element">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-md transform scale-95 transition-transform duration-200">
-            <h3 class="text-xl font-bold mb-1 text-gray-800" id="promptTitle">Name this Area</h3>
-            <p class="text-sm text-gray-500 mb-5" id="promptDesc">What do locals call this neighborhood?</p>
-            <input type="text" id="inputLocName" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition text-lg font-medium" placeholder="e.g. Kompota">
-            <div class="flex gap-3 mt-6 justify-end">
-                <button id="btnCancelPrompt" class="px-5 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition">Cancel</button>
-                <button id="btnSavePrompt" class="px-5 py-2 bg-indigo-600 text-white font-bold rounded-xl shadow-md hover:bg-indigo-700 transition">Save to Map</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Auth Modal (Email/Password Only) -->
-    <div id="modalAuth" class="absolute inset-0 bg-gray-900/60 flex items-center justify-center z-[2000] hidden ui-element">
-        <div class="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-sm">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-xl font-bold text-gray-800" id="authTitle">Sign In</h3>
-                <button id="btnCloseAuth" class="text-gray-400 hover:text-gray-700"><i class="fa-solid fa-xmark text-lg"></i></button>
-            </div>
-            
-            <div class="flex mb-4 bg-gray-100 p-1 rounded-lg">
-                <button id="tabLogin" class="flex-1 py-1.5 text-sm font-bold rounded-md bg-white shadow-sm text-indigo-600 transition">Log In</button>
-                <button id="tabSignup" class="flex-1 py-1.5 text-sm font-bold rounded-md text-gray-500 hover:text-gray-700 transition">Sign Up</button>
-            </div>
-
-            <div id="authError" class="hidden bg-red-100 text-red-600 text-xs p-3 rounded-lg mb-4 font-medium"></div>
-
-            <div id="signupFields" class="hidden mb-3">
-                <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Nickname</label>
-                <input type="text" id="authNickname" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition" placeholder="How others will see you">
-            </div>
-
-            <div class="mb-3">
-                <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Email</label>
-                <input type="email" id="authEmail" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition" placeholder="you@email.com">
-            </div>
-
-            <div class="mb-5">
-                <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Password</label>
-                <input type="password" id="authPassword" class="w-full px-4 py-2.5 rounded-xl border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition" placeholder="••••••••">
-            </div>
-
-            <button id="btnSubmitAuth" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-md hover:bg-indigo-700 transition">Log In</button>
-        </div>
-    </div>
-
-    <!-- Message Modal (Replaces alerts) -->
-    <div id="modalMessage" class="absolute inset-0 bg-gray-900/60 flex items-center justify-center z-[3000] hidden ui-element">
-        <div class="bg-white rounded-2xl shadow-xl p-6 w-11/12 max-w-sm text-center">
-            <i id="messageIcon" class="fa-solid fa-circle-info text-4xl text-indigo-500 mb-3"></i>
-            <h3 class="text-lg font-bold text-gray-800 mb-2" id="messageTitle">Notice</h3>
-            <p class="text-sm text-gray-600 mb-5" id="messageText">Message text goes here.</p>
-            <button id="btnCloseMessage" class="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold rounded-xl transition">Okay</button>
-        </div>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { 
-            getAuth, 
-            signInWithEmailAndPassword, 
-            createUserWithEmailAndPassword, 
-            onAuthStateChanged, 
-            signOut 
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { 
-            getFirestore, doc, setDoc, getDoc, collection, onSnapshot, 
-            addDoc, updateDoc, deleteDoc
-        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // EXACT User-provided Firebase Config
-        const firebaseConfig = {
-            apiKey: "AIzaSyDpyzVXOn5T3srMXeGq5RX9T8NSfaLdsNw",
-            authDomain: "almaty-hood-map.firebaseapp.com",
-            projectId: "almaty-hood-map",
-            storageBucket: "almaty-hood-map.firebasestorage.app",
-            messagingSenderId: "543512432504",
-            appId: "1:543512432504:web:9ee499e864df37cc38c28d",
-            measurementId: "G-KPNR9VTW39"
+  function hexData() {
+    return {
+      type: 'FeatureCollection',
+      features: cells.map(id => {
+        const { list, total } = tally(id);
+        const top = list[0];
+        const share = top ? top[1] / total : 0;
+        return {
+          type: 'Feature',
+          properties: {
+            id,
+            c: top ? color(top[0]) : '#888888',
+            // Lower opacity max to ensure streets remain readable
+            o: top ? 0.15 + 0.35 * share : 0, 
+            sel: selected.has(id) ? 1 : 0
+          },
+          geometry: { type: 'Polygon', coordinates: [geom[id]] }
         };
+      })
+    };
+  }
+  const refresh = () => {
+      if(map.getSource('hex')) map.getSource('hex').setData(hexData());
+  };
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+  function lockZoom() {
+    const a = maplibregl.MercatorCoordinate.fromLngLat({ lng: BOUNDS[0][0], lat: BOUNDS[0][1] });
+    const b = maplibregl.MercatorCoordinate.fromLngLat({ lng: BOUNDS[1][0], lat: BOUNDS[1][1] });
+    const w = Math.abs(b.x - a.x), h = Math.abs(b.y - a.y);
+    const el = map.getContainer();
+    const z = Math.log2(Math.max(el.clientWidth / w, el.clientHeight / h) / 512) + 0.01;
+    map.setMinZoom(z);
+    if (map.getZoom() < z) map.jumpTo({ zoom: z });
+  }
+  map.on('resize', lockZoom);
+
+  map.on('load', () => {
+    lockZoom();
+    map.addSource('hex', { type: 'geojson', data: hexData() });
+    
+    // Transparent fill for areas with data
+    map.addLayer({ id: 'hex-fill', type: 'fill', source: 'hex',
+      paint: { 'fill-color': ['get', 'c'], 'fill-opacity': ['get', 'o'] } });
+      
+    // Selection outline highlights
+    map.addLayer({ id: 'hex-sel', type: 'fill', source: 'hex', filter: ['==', ['get', 'sel'], 1],
+      paint: { 'fill-color': '#4f46e5', 'fill-opacity': 0.4 } });
+    map.addLayer({ id: 'hex-sel-line', type: 'line', source: 'hex', filter: ['==', ['get', 'sel'], 1],
+      paint: { 'line-color': '#3730a3', 'line-width': 2 } });
+      
+    map.addSource('hover', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.addLayer({ id: 'hover-line', type: 'line', source: 'hover',
+      paint: { 'line-color': '#111111', 'line-width': 2.5 } });
+
+    buildLegend(); buildDatalist();
+  });
+
+  // ---------- Hover / tooltip ----------
+  const tip = document.getElementById('tip');
+  const wrap = document.getElementById('mapwrap');
+  const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  function hexAt(lngLat) {
+    const id = h3.latLngToCell(lngLat.lat, lngLat.lng, RES);
+    return cellSet.has(id) ? id : null;
+  }
+  function setHover(id) {
+    if (id === hoverId) return;
+    hoverId = id;
+    if(map.getSource('hover')) {
+        map.getSource('hover').setData(id
+          ? { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [geom[id]] } }
+          : { type: 'FeatureCollection', features: [] });
+    }
+  }
+  function showTip(id, pt) {
+    if (!id || mode !== 'explore') { tip.style.display = 'none'; return; }
+    const { list, total } = tally(id);
+    let html;
+    if (!total) html = '<b>No data</b><span class="meta">Switch to "Paint Area" to name this spot.</span>';
+    else {
+      html = list.slice(0, 3).map(([n, v]) => {
+        const p = Math.round(v / total * 100);
+        return `<div>${esc(n)} <span class="meta">${p}%</span></div><div class="bar" style="width:${p}%;background:${color(n)}"></div>`;
+      }).join('');
+    }
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    
+    // Position tooltip securely within view
+    const w = tip.offsetWidth, h = tip.offsetHeight, W = wrap.clientWidth, H = wrap.clientHeight;
+    let x = pt.x + 14, y = pt.y + 14;
+    if (x + w > W - 4) x = pt.x - w - 14;
+    if (y + h > H - 4) y = pt.y - h - 14;
+    tip.style.left = Math.max(4, x) + 'px';
+    tip.style.top = Math.max(4, y) + 'px';
+  }
+
+  map.on('mousemove', e => {
+    const id = hexAt(e.lngLat);
+    setHover(id);
+    if (mode === 'explore') showTip(id, e.point);
+    else { tip.style.display = 'none'; if (painting && id) paint(id); }
+  });
+  map.on('mouseout', () => { setHover(null); tip.style.display = 'none'; });
+  map.on('click', e => { if (mode === 'explore') { const id = hexAt(e.lngLat); setHover(id); showTip(id, e.point); } });
+
+  // ---------- Painting ----------
+  function paint(id) {
+    if (paintAdd) { 
+        if (selected.size >= MAX_HEXES && !selected.has(id)) { status(`Limit is ${MAX_HEXES} blocks.`); return; } 
+        selected.add(id); 
+    } else {
+        selected.delete(id);
+    }
+    refresh(); updateSubmit();
+  }
+  function startPaint(e) {
+    if (mode !== 'add') return;
+    const id = hexAt(e.lngLat); if (!id) return;
+    painting = true; paintAdd = !selected.has(id); paint(id);
+  }
+  const stopPaint = () => { painting = false; };
+  map.on('mousedown', startPaint);
+  map.on('touchstart', startPaint, {passive: true});
+  map.on('touchmove', e => { if (painting) { const id = hexAt(e.lngLat); if (id) paint(id); } }, {passive: true});
+  map.on('mouseup', stopPaint); map.on('touchend', stopPaint);
+  window.addEventListener('mouseup', stopPaint);
+
+  // ---------- UI ----------
+  const nameEl = document.getElementById('name');
+  const submitEl = document.getElementById('submit');
+  const statusEl = document.getElementById('status');
+  const status = t => { statusEl.textContent = t; };
+  
+  function updateSubmit() {
+    submitEl.disabled = !(nameEl.value.trim() && selected.size);
+    submitEl.textContent = selected.size ? `Save (${selected.size} block${selected.size === 1 ? '' : 's'})` : 'Save to Map';
+  }
+  nameEl.addEventListener('input', updateSubmit);
+
+  function setMode(m) {
+    mode = m;
+    document.body.classList.toggle('add', m === 'add');
+    document.getElementById('m-explore').setAttribute('aria-pressed', m === 'explore');
+    document.getElementById('m-add').setAttribute('aria-pressed', m === 'add');
+    if (m === 'add') { map.dragPan.disable(); map.getCanvas().style.cursor = 'crosshair'; }
+    else { map.dragPan.enable(); map.getCanvas().style.cursor = ''; selected.clear(); refresh(); updateSubmit(); }
+    tip.style.display = 'none';
+  }
+  
+  const panel = document.getElementById('panel');
+  const showBtn = document.getElementById('show-panel');
+  function setPanel(open) {
+    panel.classList.toggle('hidden', !open);
+    showBtn.classList.toggle('on', !open);
+  }
+  document.getElementById('panel-toggle').onclick = () => setPanel(false);
+  showBtn.onclick = () => setPanel(true);
+  document.getElementById('m-explore').onclick = () => setMode('explore');
+  document.getElementById('m-add').onclick = () => { setPanel(true); setMode('add'); nameEl.focus(); };
+
+  document.getElementById('clear').onclick = () => { selected.clear(); refresh(); updateSubmit(); status(''); };
+  
+  submitEl.onclick = async () => {
+    const name = canon(nameEl.value);
+    if (!name || !selected.size) return;
+    if (!currentUser) { status("Connecting to server..."); return; }
+
+    submitEl.disabled = true;
+    status('Saving...');
+
+    try {
+        const batch = writeBatch(db);
         
-        // Strict Path Definitions based on rules
-        const appId = 'almaty-hood-map';
-        const PATH_PUBLIC_DATA = `artifacts/${appId}/public/data`;
+        selected.forEach(hexId => {
+            const cacheKey = `${hexId}_${name}`;
+            const existing = docCache.get(cacheKey);
+            
+            if (existing) {
+                // Skip if user already voted for this name on this hex
+                if (existing.votedUsers && existing.votedUsers[currentUser.uid] === 'up') return;
+                
+                const ref = doc(db, PATH_PUBLIC_DATA, 'hex_names', existing.id);
+                let currentVotes = existing.votedUsers || {};
+                currentVotes[currentUser.uid] = 'up';
+                
+                batch.update(ref, {
+                    upvotes: (existing.upvotes || 0) + 1,
+                    score: (existing.score || 0) + 1,
+                    votedUsers: currentVotes
+                });
+            } else {
+                // Create brand new entry for this hex
+                const ref = doc(hexCollectionRef);
+                batch.set(ref, {
+                    hex_id: hexId,
+                    name: name,
+                    score: 1,
+                    upvotes: 1,
+                    downvotes: 0,
+                    createdByUid: currentUser.uid,
+                    votedUsers: { [currentUser.uid]: 'up' },
+                    timestamp: new Date().toISOString()
+                });
+            }
+        });
         
-        const hexCollectionRef = collection(db, PATH_PUBLIC_DATA, 'hex_names');
-        const pinCollectionRef = collection(db, PATH_PUBLIC_DATA, 'pins');
-        const usersCollectionRef = collection(db, PATH_PUBLIC_DATA, 'users');
-
-        // Global State
-        let currentUser = null;
-        let userNickname = "";
-        let mapMode = 'hex'; // 'hex' or 'pin'
-        let actionState = 'idle'; // 'idle', 'painting', 'dropping'
-        let isDrawing = false;
-        let lastToggledHex = null;
+        await batch.commit();
         
-        let allHexData = []; 
-        let processedHexes = new Map(); // hex_id -> array of entries
-        let allPinData = []; 
+        const n = selected.size;
+        selected.clear(); nameEl.value = '';
+        refresh(); updateSubmit();
+        status(`Saved “${name}” to ${n} block${n === 1 ? '' : 's'}.`);
         
-        let currentSelection = new Set(); // Stores hex_ids when painting
-        let previewLayers = new Map(); // hexId -> Leaflet Polygon layer (for erasing)
-        let tempMarker = null; // Temp pin marker
+    } catch(err) {
+        console.error("Save error:", err);
+        status("Error saving to database.");
+        submitEl.disabled = false;
+    }
+  };
 
-        const H3_RES = 10; // ~100m hexagon resolution
-        const MIN_SCORE_TO_SHOW = -4;
-
-        // Custom UI Alert Function
-        function showMessage(title, text, isError = false) {
-            document.getElementById('messageTitle').textContent = title;
-            document.getElementById('messageText').textContent = text;
-            const icon = document.getElementById('messageIcon');
-            if (isError) {
-                icon.className = "fa-solid fa-triangle-exclamation text-4xl text-red-500 mb-3";
-            } else {
-                icon.className = "fa-solid fa-circle-info text-4xl text-indigo-500 mb-3";
-            }
-            document.getElementById('modalMessage').classList.remove('hidden');
-        }
-        document.getElementById('btnCloseMessage').addEventListener('click', () => {
-            document.getElementById('modalMessage').classList.add('hidden');
-        });
-
-        const map = L.map('map', { zoomControl: false, doubleClickZoom: false }).setView([43.2220, 76.8512], 13);
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-        // Official Esri World Street Map Tiles (Free, no API Key, bypassing OSM 403 blocks)
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-            maxZoom: 19,
-            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
-        }).addTo(map);
-
-        // Map Layers
-        const hexLayerGroup = L.layerGroup().addTo(map);
-        const paintLayerGroup = L.layerGroup().addTo(map); // Layer for active painting selection
-        const markerCluster = L.markerClusterGroup({
-            spiderfyOnMaxZoom: true,
-            showCoverageOnHover: false,
-            zoomToBoundsOnClick: true
-        });
-        map.addLayer(markerCluster);
-
-        // Utilities
-        function stringToColor(str) {
-            // Generates a consistent hex color from a string
-            let hash = 0;
-            for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
-            let color = '#';
-            for (let i = 0; i < 3; i++) {
-                const value = (hash >> (i * 8)) & 0xFF;
-                color += ('00' + value.toString(16)).slice(-2);
-            }
-            return color;
-        }
-
-        const modalAuth = document.getElementById('modalAuth');
-        let authMode = 'login'; // 'login' or 'signup'
-
-        document.getElementById('tabLogin').addEventListener('click', () => setAuthMode('login'));
-        document.getElementById('tabSignup').addEventListener('click', () => setAuthMode('signup'));
-        document.getElementById('btnCloseAuth').addEventListener('click', () => modalAuth.classList.add('hidden'));
-
-        function setAuthMode(mode) {
-            authMode = mode;
-            const errBox = document.getElementById('authError');
-            errBox.classList.add('hidden');
-            
-            if (mode === 'login') {
-                document.getElementById('tabLogin').className = "flex-1 py-1.5 text-sm font-bold rounded-md bg-white shadow-sm text-indigo-600 transition";
-                document.getElementById('tabSignup').className = "flex-1 py-1.5 text-sm font-bold rounded-md text-gray-500 hover:text-gray-700 transition";
-                document.getElementById('signupFields').classList.add('hidden');
-                document.getElementById('btnSubmitAuth').textContent = "Log In";
-                document.getElementById('authTitle').textContent = "Welcome Back";
-            } else {
-                document.getElementById('tabSignup').className = "flex-1 py-1.5 text-sm font-bold rounded-md bg-white shadow-sm text-indigo-600 transition";
-                document.getElementById('tabLogin').className = "flex-1 py-1.5 text-sm font-bold rounded-md text-gray-500 hover:text-gray-700 transition";
-                document.getElementById('signupFields').classList.remove('hidden');
-                document.getElementById('btnSubmitAuth').textContent = "Create Account";
-                document.getElementById('authTitle').textContent = "Join the Community";
-            }
-        }
-
-        document.getElementById('btnUserAuth').addEventListener('click', () => {
-            if (currentUser) {
-                // If logged in, prompt logout via our message modal (replacing window.confirm)
-                document.getElementById('messageTitle').textContent = "Log Out";
-                document.getElementById('messageText').textContent = "Are you sure you want to log out?";
-                const icon = document.getElementById('messageIcon');
-                icon.className = "fa-solid fa-right-from-bracket text-4xl text-indigo-500 mb-3";
-                
-                // Temporarily override the okay button to act as logout
-                const btn = document.getElementById('btnCloseMessage');
-                const oldText = btn.textContent;
-                btn.textContent = "Log Out";
-                
-                const handler = () => {
-                    signOut(auth);
-                    document.getElementById('modalMessage').classList.add('hidden');
-                    btn.textContent = oldText;
-                    btn.removeEventListener('click', handler);
-                };
-                btn.addEventListener('click', handler, {once: true});
-                document.getElementById('modalMessage').classList.remove('hidden');
-            } else {
-                setAuthMode('login');
-                modalAuth.classList.remove('hidden');
-            }
-        });
-
-        document.getElementById('btnSubmitAuth').addEventListener('click', async () => {
-            const email = document.getElementById('authEmail').value.trim();
-            const pass = document.getElementById('authPassword').value;
-            const nick = document.getElementById('authNickname').value.trim();
-            const errBox = document.getElementById('authError');
-
-            if (!email || !pass) {
-                errBox.textContent = "Email and password are required.";
-                errBox.classList.remove('hidden');
-                return;
-            }
-
-            try {
-                errBox.classList.add('hidden');
-                if (authMode === 'signup') {
-                    if (!nick) {
-                        errBox.textContent = "Nickname is required for signup.";
-                        errBox.classList.remove('hidden');
-                        return;
-                    }
-                    const cred = await createUserWithEmailAndPassword(auth, email, pass);
-                    // Save nickname to users collection
-                    await setDoc(doc(usersCollectionRef, cred.user.uid), { nickname: nick, email: email });
-                } else {
-                    await signInWithEmailAndPassword(auth, email, pass);
-                }
-                modalAuth.classList.add('hidden');
-            } catch (err) {
-                console.error("Auth Error:", err);
-                errBox.textContent = err.message.replace("Firebase: ", "");
-                errBox.classList.remove('hidden');
-            }
-        });
-
-        onAuthStateChanged(auth, async (user) => {
-            currentUser = user;
-            if (user) {
-                // Fetch user doc for nickname
-                try {
-                    const userDoc = await getDoc(doc(usersCollectionRef, user.uid));
-                    if (userDoc.exists()) {
-                        userNickname = userDoc.data().nickname;
-                    } else {
-                        userNickname = user.email.split('@')[0]; // fallback
-                    }
-                    document.getElementById('userName').textContent = userNickname;
-                    document.getElementById('userAvatar').innerHTML = `<span class="text-sm font-bold">${userNickname.charAt(0).toUpperCase()}</span>`;
-                } catch(e) { console.error("Error fetching user data", e); }
-                
-                startRealtimeListeners();
-            } else {
-                userNickname = "";
-                document.getElementById('userName').textContent = "Sign In";
-                document.getElementById('userAvatar').innerHTML = `<i class="fa-solid fa-user"></i>`;
-                
-                // Still listen to public data even if logged out
-                startRealtimeListeners(); 
-            }
-        });
-
-        let listenersStarted = false;
-        function startRealtimeListeners() {
-            if (listenersStarted) return; // Prevent duplicate listeners
-            listenersStarted = true;
-
-            // Listen to Hex Names
-            onSnapshot(hexCollectionRef, (snapshot) => {
-                allHexData = [];
-                snapshot.forEach(doc => {
-                    allHexData.push({ id: doc.id, ...doc.data() });
-                });
-                processHexData();
-                if(mapMode === 'hex') renderHexes();
-                
-                if (!document.getElementById('sidebar').classList.contains('sidebar-hidden') && currentSelectedSidebarItemId) {
-                    updateSidebarContent();
-                }
-            }, (error) => { console.error("Error fetching hexes:", error); });
-
-            // Listen to Pins
-            onSnapshot(pinCollectionRef, (snapshot) => {
-                allPinData = [];
-                snapshot.forEach(doc => {
-                    allPinData.push({ id: doc.id, ...doc.data() });
-                });
-                if(mapMode === 'pin') renderPins();
-                
-                if (!document.getElementById('sidebar').classList.contains('sidebar-hidden') && currentSelectedSidebarItemId) {
-                    updateSidebarContent();
-                }
-            }, (error) => { console.error("Error fetching pins:", error); });
-        }
-
-        function processHexData() {
-            processedHexes.clear();
-            allHexData.forEach(entry => {
-                if (!processedHexes.has(entry.hex_id)) {
-                    processedHexes.set(entry.hex_id, []);
-                }
-                processedHexes.get(entry.hex_id).push(entry);
-            });
-
-            // Sort each hex's names by score descending
-            processedHexes.forEach((namesArray) => {
-                namesArray.sort((a, b) => b.score - a.score);
-            });
-        }
-
-        let currentSelectedSidebarItemId = null; // Either a hex_id or a pin_id
-        let currentSidebarType = null; // 'hex' or 'pin'
-
-        function renderHexes() {
-            hexLayerGroup.clearLayers();
-            markerCluster.clearLayers(); // Hide pins
-
-            processedHexes.forEach((namesArray, hexId) => {
-                const topEntry = namesArray[0];
-                // Hide heavily downvoted areas
-                if (topEntry.score <= MIN_SCORE_TO_SHOW) return;
-
-                const baseColor = stringToColor(topEntry.name);
-                // Opacity formula: 0.2 base + up to 0.4 based on votes (max 100)
-                const opacity = 0.2 + (Math.min(Math.max(topEntry.score, 0), 100) / 100) * 0.4;
-
-                try {
-                    const boundary = h3.cellToBoundary(hexId);
-                    const polygon = L.polygon(boundary, {
-                        color: baseColor,
-                        weight: 1,
-                        fillColor: baseColor,
-                        fillOpacity: opacity,
-                        className: 'transition-opacity duration-300'
-                    });
-
-                    polygon.on('click', () => openSidebar('hex', hexId));
-                    polygon.on('mouseover', (e) => {
-                        if(actionState === 'idle') e.target.setStyle({ fillOpacity: Math.min(opacity + 0.3, 1), weight: 2 });
-                    });
-                    polygon.on('mouseout', (e) => {
-                        if(actionState === 'idle') e.target.setStyle({ fillOpacity: opacity, weight: 1 });
-                    });
-
-                    polygon.addTo(hexLayerGroup);
-                } catch(e) {
-                    // Ignore invalid hexes if data is corrupted
-                }
-            });
-        }
-
-        function renderPins() {
-            hexLayerGroup.clearLayers(); // Hide hexes
-            markerCluster.clearLayers();
-
-            allPinData.forEach(pin => {
-                if (pin.score <= MIN_SCORE_TO_SHOW) return;
-
-                const marker = L.marker([pin.lat, pin.lng], {
-                    title: pin.name
-                });
-                
-                marker.on('click', () => openSidebar('pin', pin.id));
-                markerCluster.addLayer(marker);
-            });
-        }
-
-        function setMode(mode) {
-            mapMode = mode;
-            cancelAction();
-            
-            if (mode === 'hex') {
-                document.getElementById('btnModeHex').className = "px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-indigo-100 text-indigo-700";
-                document.getElementById('btnModePin').className = "px-4 py-2 rounded-lg font-medium text-sm transition-colors text-gray-600 hover:bg-gray-100";
-                document.getElementById('btnMainAction').innerHTML = '<i class="fa-solid fa-paint-roller"></i> Paint Area';
-                renderHexes();
-            } else {
-                document.getElementById('btnModePin').className = "px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-indigo-100 text-indigo-700";
-                document.getElementById('btnModeHex').className = "px-4 py-2 rounded-lg font-medium text-sm transition-colors text-gray-600 hover:bg-gray-100";
-                document.getElementById('btnMainAction').innerHTML = '<i class="fa-solid fa-location-dot"></i> Drop Pin';
-                renderPins();
-            }
-        }
-
-        document.getElementById('btnModeHex').addEventListener('click', () => setMode('hex'));
-        document.getElementById('btnModePin').addEventListener('click', () => setMode('pin'));
-
-        document.getElementById('btnMainAction').addEventListener('click', () => {
-            if (!currentUser) {
-                showMessage("Authentication Required", "Please log in or sign up to add areas and pins to the map.", true);
-                modalAuth.classList.remove('hidden');
-                return;
-            }
-
-            if (actionState === 'idle') {
-                actionState = mapMode === 'hex' ? 'painting' : 'dropping';
-                
-                document.getElementById('btnMainAction').classList.add('hidden');
-                document.getElementById('activeActionBanner').classList.remove('hidden');
-                document.getElementById('map').classList.add('drawing-cursor');
-                
-                if (actionState === 'painting') {
-                    document.getElementById('actionInstruction').textContent = "Click & drag over blocks to paint. Click selected blocks to erase.";
-                    document.getElementById('btnClearSelection').classList.remove('hidden');
-                    map.dragging.disable(); 
-                } else {
-                    document.getElementById('actionInstruction').textContent = "Click anywhere to drop a pin...";
-                    document.getElementById('btnClearSelection').classList.add('hidden');
-                }
-            }
-        });
-
-        function clearSelection() {
-            currentSelection.clear();
-            paintLayerGroup.clearLayers();
-            previewLayers.clear();
-            lastToggledHex = null;
-        }
-
-        document.getElementById('btnClearSelection').addEventListener('click', clearSelection);
-
-        function cancelAction() {
-            actionState = 'idle';
-            document.getElementById('btnMainAction').classList.remove('hidden');
-            document.getElementById('activeActionBanner').classList.add('hidden');
-            document.getElementById('map').classList.remove('drawing-cursor');
-            map.dragging.enable();
-            
-            clearSelection();
-            if(tempMarker) { map.removeLayer(tempMarker); tempMarker = null; }
-        }
-
-        document.getElementById('btnCancelAction').addEventListener('click', cancelAction);
-
-        // Map mouse events for painting hexes or dropping pins
-        map.on('mousedown', (e) => {
-            if (actionState === 'painting') {
-                isDrawing = true;
-                toggleHexSelection(e.latlng);
-            }
-        });
-
-        map.on('mousemove', (e) => {
-            if (actionState === 'painting' && isDrawing) {
-                toggleHexSelection(e.latlng);
-            }
-        });
-
-        map.on('mouseup', () => {
-            if (actionState === 'painting') isDrawing = false;
-            lastToggledHex = null; // Reset toggle lock on release
-        });
-
-        map.on('click', (e) => {
-            if (actionState === 'dropping') {
-                if(tempMarker) map.removeLayer(tempMarker);
-                tempMarker = L.marker(e.latlng, { draggable: true }).addTo(map);
-            }
-        });
-
-        function toggleHexSelection(latlng) {
-            try {
-                const hexId = h3.latLngToCell(latlng.lat, latlng.lng, H3_RES);
-                
-                // Prevent rapid toggling of the exact same hex during drag
-                if (lastToggledHex === hexId) return;
-                lastToggledHex = hexId;
-
-                if (currentSelection.has(hexId)) {
-                    // Deselect
-                    currentSelection.delete(hexId);
-                    const layer = previewLayers.get(hexId);
-                    if (layer) {
-                        paintLayerGroup.removeLayer(layer);
-                        previewLayers.delete(hexId);
-                    }
-                } else {
-                    // Select
-                    currentSelection.add(hexId);
-                    const boundary = h3.cellToBoundary(hexId);
-                    const p = L.polygon(boundary, { 
-                        color: '#4f46e5', weight: 2, fillOpacity: 0.6 
-                    }).addTo(paintLayerGroup);
-                    previewLayers.set(hexId, p);
-                }
-            } catch (err) { /* Ignored if click is out of bounds */ }
-        }
-
-        document.getElementById('btnConfirmAction').addEventListener('click', () => {
-            if (actionState === 'painting' && currentSelection.size === 0) {
-                return showMessage("Empty Selection", "Please paint at least one hexagon block on the map.", true);
-            }
-            if (actionState === 'dropping' && !tempMarker) {
-                return showMessage("No Pin", "Please click the map to drop a pin first.", true);
-            }
-            
-            // Show prompt
-            const promptTitle = actionState === 'painting' ? 'Name this Area' : 'Name this Landmark';
-            const promptDesc = actionState === 'painting' ? 'What do locals call this neighborhood?' : 'What is the local name for this spot?';
-            
-            document.getElementById('promptTitle').textContent = promptTitle;
-            document.getElementById('promptDesc').textContent = promptDesc;
-            document.getElementById('inputLocName').value = '';
-            
-            document.getElementById('modalNamePrompt').classList.remove('hidden');
-            document.getElementById('inputLocName').focus();
-        });
-
-        document.getElementById('btnCancelPrompt').addEventListener('click', () => {
-            document.getElementById('modalNamePrompt').classList.add('hidden');
-        });
-
-        document.getElementById('btnSavePrompt').addEventListener('click', async () => {
-            const nameVal = document.getElementById('inputLocName').value.trim();
-            if (!nameVal) return showMessage("Required", "Please enter a name.", true);
-            if (!currentUser) return; // Should be caught earlier
-            
-            document.getElementById('modalNamePrompt').classList.add('hidden');
-            
-            const baseData = {
-                name: nameVal,
-                score: 1,
-                upvotes: 1,
-                downvotes: 0,
-                createdByUid: currentUser.uid,
-                createdByName: userNickname,
-                votedUsers: { [currentUser.uid]: 'up' },
-                timestamp: new Date().toISOString()
-            };
-
-            try {
-                if (actionState === 'painting') {
-                    // Save multiple hex documents
-                    for (let hexId of currentSelection) {
-                        await addDoc(hexCollectionRef, { ...baseData, hex_id: hexId });
-                    }
-                    showMessage("Success", `Area "${nameVal}" saved over ${currentSelection.size} blocks!`);
-                } else if (actionState === 'dropping') {
-                    // Save single pin
-                    const pos = tempMarker.getLatLng();
-                    await addDoc(pinCollectionRef, { ...baseData, lat: pos.lat, lng: pos.lng });
-                    showMessage("Success", `Landmark "${nameVal}" saved!`);
-                }
-            } catch(e) { 
-                console.error("Error saving:", e); 
-                showMessage("Error", "Failed to save data. " + e.message, true);
-            }
-
-            cancelAction();
-        });
-
-        function openSidebar(type, id) {
-            if (actionState !== 'idle') return; // Don't open if drawing
-
-            currentSidebarType = type;
-            currentSelectedSidebarItemId = id;
-            document.getElementById('sidebar').classList.remove('sidebar-hidden');
-            updateSidebarContent();
-        }
-
-        document.getElementById('btnCloseSidebar').addEventListener('click', () => {
-            document.getElementById('sidebar').classList.add('sidebar-hidden');
-            currentSelectedSidebarItemId = null;
-        });
-
-        function updateSidebarContent() {
-            if (!currentSelectedSidebarItemId) return;
-            const sidebarTitle = document.getElementById('sidebarTitle');
-            const sidebarContent = document.getElementById('sidebarContent');
-            let html = '';
-            
-            if (currentSidebarType === 'hex') {
-                const hexId = currentSelectedSidebarItemId;
-                sidebarTitle.textContent = "Local Area Names";
-                const entries = processedHexes.get(hexId) || [];
-                
-                if (entries.length === 0) {
-                    html = '<p class="text-gray-500 text-center mt-10">No active names for this block.</p>';
-                } else {
-                    html = '<div class="space-y-4">';
-                    entries.forEach(entry => {
-                        if (entry.score <= MIN_SCORE_TO_SHOW) return;
-                        html += generateVoteCard(entry, 'hex');
-                    });
-                    html += '</div>';
-                }
-            } else {
-                sidebarTitle.textContent = "Landmark Details";
-                const pin = allPinData.find(p => p.id === currentSelectedSidebarItemId);
-                if (pin) {
-                    html = generateVoteCard(pin, 'pin');
-                } else {
-                    html = '<p class="text-gray-500 text-center mt-10">Data not found.</p>';
-                }
-            }
-
-            sidebarContent.innerHTML = html;
-            attachCardListeners();
-        }
-
-        function generateVoteCard(item, collectionType) {
-            const userVote = item.votedUsers && currentUser && item.votedUsers[currentUser.uid];
-            const upActive = userVote === 'up' ? 'text-indigo-600 bg-indigo-100' : 'text-gray-400 hover:bg-gray-100';
-            const downActive = userVote === 'down' ? 'text-orange-600 bg-orange-100' : 'text-gray-400 hover:bg-gray-100';
-            
-            // Show delete button ONLY if current user created this specific entry
-            const isOwner = currentUser && item.createdByUid === currentUser.uid;
-            const deleteBtnHtml = isOwner ? `
-                <button class="delete-btn text-red-400 hover:text-red-600 p-2 rounded-full hover:bg-red-50 transition ml-2" data-id="${item.id}" data-type="${collectionType}" title="Delete your entry">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
-            ` : '';
-            
-            return `
-                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-                    <div class="flex justify-between items-start">
-                        <div class="flex-1 pr-2">
-                            <h3 class="font-bold text-gray-800 text-lg break-words leading-tight">${item.name}</h3>
-                            <div class="flex items-center mt-1 text-xs text-gray-500">
-                                <span>Added by <span class="font-semibold">${item.createdByName || 'Anonymous'}</span></span>
-                            </div>
-                        </div>
-                        <div class="flex items-start">
-                            <div class="flex flex-col items-center bg-gray-50 border border-gray-100 rounded-lg p-1 shadow-inner">
-                                <button class="vote-btn p-1.5 rounded-md ${upActive} transition" data-id="${item.id}" data-type="${collectionType}" data-vote="up">
-                                    <i class="fa-solid fa-chevron-up"></i>
-                                </button>
-                                <span class="font-bold text-sm my-1 ${item.score >= 0 ? 'text-gray-800' : 'text-orange-500'}">${item.score}</span>
-                                <button class="vote-btn p-1.5 rounded-md ${downActive} transition" data-id="${item.id}" data-type="${collectionType}" data-vote="down">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </button>
-                            </div>
-                            ${deleteBtnHtml}
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        function attachCardListeners() {
-            // Voting Logic
-            document.querySelectorAll('.vote-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    if (!currentUser) {
-                        showMessage("Authentication Required", "Please log in to vote.", true);
-                        modalAuth.classList.remove('hidden');
-                        return;
-                    }
-                    
-                    const btnEl = e.currentTarget;
-                    const docId = btnEl.getAttribute('data-id');
-                    const cType = btnEl.getAttribute('data-type');
-                    const voteAction = btnEl.getAttribute('data-vote'); // 'up' or 'down'
-
-                    const ref = doc(db, PATH_PUBLIC_DATA, cType === 'hex' ? 'hex_names' : 'pins', docId);
-                    
-                    try {
-                        const snap = await getDoc(ref);
-                        if(!snap.exists()) return;
-                        const data = snap.data();
-                        
-                        let currentVotes = data.votedUsers || {};
-                        const previousVote = currentVotes[currentUser.uid];
-                        
-                        let newUpvotes = data.upvotes || 0;
-                        let newDownvotes = data.downvotes || 0;
-
-                        if (previousVote === voteAction) {
-                            // Toggle off (remove vote)
-                            delete currentVotes[currentUser.uid];
-                            if(voteAction === 'up') newUpvotes--;
-                            if(voteAction === 'down') newDownvotes--;
-                        } else {
-                            // Changing vote or brand new vote
-                            if(previousVote === 'up') newUpvotes--;
-                            if(previousVote === 'down') newDownvotes--;
-                            
-                            currentVotes[currentUser.uid] = voteAction;
-                            if(voteAction === 'up') newUpvotes++;
-                            if(voteAction === 'down') newDownvotes++;
-                        }
-
-                        const newScore = newUpvotes - newDownvotes;
-
-                        await updateDoc(ref, {
-                            upvotes: newUpvotes,
-                            downvotes: newDownvotes,
-                            score: newScore,
-                            votedUsers: currentVotes
-                        });
-
-                    } catch(err) {
-                        console.error("Voting failed", err);
-                        showMessage("Vote Failed", "Could not submit vote. " + err.message, true);
-                    }
-                });
-            });
-
-            // Deletion Logic
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
-                    if (!currentUser) return; // Guard
-                    
-                    const btnEl = e.currentTarget;
-                    const docId = btnEl.getAttribute('data-id');
-                    const cType = btnEl.getAttribute('data-type');
-                    
-                    const ref = doc(db, PATH_PUBLIC_DATA, cType === 'hex' ? 'hex_names' : 'pins', docId);
-                    try {
-                        await deleteDoc(ref);
-                        // If it was a pin and it's the one we're viewing, close sidebar
-                        if (cType === 'pin' && currentSelectedSidebarItemId === docId) {
-                            document.getElementById('sidebar').classList.add('sidebar-hidden');
-                        }
-                    } catch(err) {
-                        console.error("Deletion failed", err);
-                        showMessage("Deletion Failed", "You don't have permission to delete this.", true);
-                    }
-                });
-            });
-        }
-
-        // Initialize listener state fallback if auth resolves to null early
-        setTimeout(() => {
-            if (!listenersStarted) startRealtimeListeners();
-        }, 2000);
-
-    </script>
+  function allNames() {
+    const t = {};
+    cells.forEach(id => { const { list } = tally(id); if (list[0]) t[list[0][0]] = (t[list[0][0]] || 0) + 1; });
+    return Object.entries(t).sort((a, b) => b[1] - a[1]);
+  }
+  function buildLegend() {
+    const names = allNames();
+    document.getElementById('legend').innerHTML = names.length
+      ? names.map(([n]) => `<span><i style="background:${color(n)}"></i>${esc(n)}</span>`).join('')
+      : '<span>No areas recorded yet. Add the first one!</span>';
+  }
+  function buildDatalist() {
+    const names = new Set(); 
+    cells.forEach(id => tally(id).list.forEach(([n]) => names.add(n)));
+    document.getElementById('known').innerHTML = [...names].sort().map(n => `<option value="${esc(n)}">`).join('');
+  }
+</script>
 </body>
 </html>
